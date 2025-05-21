@@ -1,6 +1,6 @@
 import { useState } from "react";
-// @ts-ignore
-import Papa from "papaparse";
+const Papa = (await import('papaparse')).default;
+
 
 export default function Home() {
   const [ytUrl, setYtUrl] = useState("");
