@@ -1,4 +1,5 @@
 import { useState } from "react";
+// @ts-ignore
 import Papa from "papaparse";
 
 export default function Home() {
