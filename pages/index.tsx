@@ -1,78 +1,87 @@
 import { useState } from "react";
 
+// @ts-ignore
+import Papa from "papaparse";
+
 export default function Home() {
   const [ytUrl, setYtUrl] = useState("");
-  const [comments, setComments] = useState<string[]>([]);
+  const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchComments = async () => {
+  // Dummy fetch comments function - replace with your API call
+  async function fetchComments() {
+    if (!ytUrl) {
+      setError("Please enter a valid YouTube URL.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+
     try {
-      setLoading(true);
-      setError("");
+      // Example: fetch from your backend API endpoint
+      const response = await fetch(`/api/comments?url=${encodeURIComponent(ytUrl)}`);
+      if (!response.ok) throw new Error("Failed to fetch comments");
+      const data = await response.json();
+
+      setComments(data.comments || []);
+    } catch (e: any) {
+      setError(e.message || "Unknown error");
       setComments([]);
-
-      const videoId = extractVideoId(ytUrl);
-      if (!videoId) {
-        setError("Invalid YouTube URL");
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch(`/api/comments?videoId=${videoId}`);
-      if (!res.ok) throw new Error("Failed to fetch comments");
-
-      const data = await res.json();
-      setComments(data.comments);
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const downloadCSV = async () => {
-    const Papa = (await import("papaparse")).default;
-    const csv = Papa.unparse(comments.map((text) => ({ comment: text })));
-
+  function downloadCsv() {
+    if (comments.length === 0) {
+      setError("No comments to download");
+      return;
+    }
+    const csv = Papa.unparse(comments);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
+
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", "youtube_comments.csv");
-    document.body.appendChild(link);
+    link.download = "comments.csv";
     link.click();
-    document.body.removeChild(link);
-  };
 
-  const extractVideoId = (url: string) => {
-    const regExp = /^.*((youtu.be\/)|(v\/)|(u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-    const match = url.match(regExp);
-    return match && match[7].length === 11 ? match[7] : null;
-  };
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "Arial, sans-serif" }}>
-      <h1>YouTube Comment Downloader</h1>
+    <main style={{ padding: "2rem", fontFamily: "Arial, sans-serif" }}>
+      <h1>YouTube Comments Downloader</h1>
       <input
         type="text"
-        placeholder="Paste YouTube video URL"
+        placeholder="Paste YouTube video URL here"
         value={ytUrl}
         onChange={(e) => setYtUrl(e.target.value)}
         style={{ width: "100%", padding: "0.5rem", marginBottom: "1rem" }}
       />
-      <button onClick={fetchComments} disabled={loading}>
-        {loading ? "Fetching..." : "Fetch Comments"}
+      <button onClick={fetchComments} disabled={loading} style={{ marginRight: "1rem" }}>
+        {loading ? "Loading..." : "Fetch Comments"}
+      </button>
+      <button onClick={downloadCsv} disabled={comments.length === 0}>
+        Download CSV
       </button>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{ color: "red", marginTop: "1rem" }}>{error}</p>}
 
       {comments.length > 0 && (
-        <>
-          <p>{comments.length} comments loaded.</p>
-          <button onClick={downloadCSV}>Download CSV</button>
-        </>
+        <div style={{ marginTop: "2rem" }}>
+          <h2>Fetched Comments ({comments.length})</h2>
+          <ul style={{ maxHeight: "300px", overflowY: "auto", padding: 0, listStyle: "none" }}>
+            {comments.slice(0, 20).map((comment, i) => (
+              <li key={i} style={{ borderBottom: "1px solid #ddd", padding: "0.5rem 0" }}>
+                {comment.text || JSON.stringify(comment)}
+              </li>
+            ))}
+          </ul>
+          {comments.length > 20 && <p>Showing first 20 comments...</p>}
+        </div>
       )}
-    </div>
+    </main>
   );
 }
