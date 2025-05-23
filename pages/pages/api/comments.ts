@@ -1,53 +1,35 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-type Comment = {
-  author: string;
-  text: string;
-  likeCount: number;
-  publishedAt: string;
-};
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
-type Data = {
-  comments: Comment[];
-};
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Extract videoId safely
+  const videoId = req.query?.videoId as string;
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse<Data | { error: string }>
-) {
-  const { videoId } = req.query;
-  if (!videoId || typeof videoId !== "string") {
-    res.status(400).json({ error: "Missing or invalid videoId" });
-    return;
+  if (!videoId) {
+    return res.status(400).json({ error: "Missing videoId parameter" });
   }
 
-  const apiKey = process.env.YOUTUBE_API_KEY;
-  if (!apiKey) {
-    res.status(500).json({ error: "API key not configured" });
-    return;
+  if (!YOUTUBE_API_KEY) {
+    return res.status(500).json({ error: "Missing YOUTUBE_API_KEY in environment variables" });
   }
 
   try {
-    const url = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&key=${apiKey}&maxResults=100`;
-    const response = await fetch(url);
+    const apiUrl = `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${videoId}&maxResults=100&key=${YOUTUBE_API_KEY}`;
+    const response = await fetch(apiUrl);
+
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`YouTube API error: ${text}`);
+      throw new Error(`YouTube API error: ${response.statusText}`);
     }
+
     const data = await response.json();
 
-    const comments: Comment[] = data.items.map((item: any) => {
-      const snippet = item.snippet.topLevelComment.snippet;
-      return {
-        author: snippet.authorDisplayName,
-        text: snippet.textDisplay.replace(/(<([^>]+)>)/gi, ""), // strip HTML
-        likeCount: snippet.likeCount,
-        publishedAt: snippet.publishedAt,
-      };
+    const comments = data.items.map((item: any) => {
+      return item.snippet.topLevelComment.snippet.textDisplay;
     });
 
     res.status(200).json({ comments });
   } catch (error: any) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || "Unknown error" });
   }
 }
